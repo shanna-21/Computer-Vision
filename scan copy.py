@@ -6,6 +6,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report
 from pathlib import Path
+from skimage.feature import hog
+from skimage.feature import local_binary_pattern
 
 IMAGE_PATH = Path("./Dataset")
 print(f"Checking path: {IMAGE_PATH.resolve()}")  
@@ -48,15 +50,70 @@ def preprocess_and_extract_features(image_path):
     final = cv2.equalizeHist(edges)
     # edges = cv2.Canny(gray, threshold1=100, threshold2=200)
 
-    sift = cv2.SIFT_create()
-    keypoints, descriptors = sift.detectAndCompute(final, None)
+
+    # ---------------- SIFT ---------------
+    # sift = cv2.SIFT_create()
+    # keypoints, descriptors = sift.detectAndCompute(gray, None)
     
-    if descriptors is None:
-        print(f"No SIFT features detected in {image_path}")
-        return None
+    # if descriptors is None:
+    #     print(f"No SIFT features detected in {image_path}")
+    #     return None
     
-    feature_vector = np.mean(descriptors, axis=0)
-    return feature_vector
+    # feature_vector = np.mean(descriptors, axis=0)
+    # return feature_vector
+
+
+    # ---------------- SURF ---------------
+    # surf = cv2.xfeatures2d.SURF_create(hessianThreshold=400)
+
+    # # Detect keypoints and compute descriptors
+    # keypoints, descriptors = surf.detectAndCompute(gray, None)
+    
+    # if descriptors is None:
+    #     print(f"No SURF features detected in {image_path}")
+    #     return None
+
+    # # Optionally, use the mean of descriptors as a feature vector
+    # feature_vector = np.mean(descriptors, axis=0)
+
+    # return feature_vector
+    # >>>GABISA<<<
+
+
+
+    # ---------------- HOG ---------------
+    hog_features, hog_image = hog(
+        final,
+        orientations=9,  # Number of orientation bins
+        pixels_per_cell=(8, 8),  # Size of the cell
+        cells_per_block=(2, 2),  # Number of cells per block
+        block_norm='L2-Hys',  # Normalization method
+        visualize=True,  # Return HOG image for debugging (optional)
+        transform_sqrt=True  # Apply power law compression
+    )
+
+    return hog_features
+
+
+
+    # ---------------- LBP ---------------
+    # radius = 3  # Radius of the circular neighborhood
+    # n_points = 8 * radius  # Number of points in the neighborhood
+
+    # # Extract LBP features
+    # lbp = local_binary_pattern(final, n_points, radius, method="uniform")
+    
+    # # Calculate the histogram of LBP
+    # n_bins = int(lbp.max() + 1)
+    # hist, _ = np.histogram(lbp.ravel(), bins=n_bins, range=(0, n_bins))
+
+    # # Normalize the histogram
+    # hist = hist.astype("float")
+    # hist /= (hist.sum() + 1e-7)  # Avoid division by zero
+
+    # return hist
+
+
 
 X = []
 y = []
@@ -119,6 +176,6 @@ def test_single_image(image_path, svm_model, classes):
     
     print(f"Predicted Class: {predicted_class}")
 
-test_image_path = "./Input/red girl.jpg"
+test_image_path = "./Input/acne.jpg"
 test_single_image(test_image_path, svm_model, classes)
 
