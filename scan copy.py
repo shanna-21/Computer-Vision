@@ -8,6 +8,9 @@ from sklearn.metrics import accuracy_score, classification_report
 from pathlib import Path
 from skimage.feature import hog
 from skimage.feature import local_binary_pattern
+from sklearn.ensemble import RandomForestClassifier, StackingClassifier
+from xgboost import XGBClassifier
+from sklearn.linear_model import LogisticRegression
 
 IMAGE_PATH = Path("./Dataset")
 print(f"Checking path: {IMAGE_PATH.resolve()}")  
@@ -148,16 +151,13 @@ print("Training SVM...")
 svm_model = SVC(kernel='linear', C=1.0, random_state=42)
 svm_model.fit(X_train, y_train)
 
-y_pred = svm_model.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f"Accuracy: {accuracy * 100:.2f}%")
+svm_y_pred = svm_model.predict(X_test)
+svm_accuracy = accuracy_score(y_test, svm_y_pred)
+print(f"Accuracy: {svm_accuracy * 100:.2f}%")
 
 # Classification Report
 print("Classification Report:")
-print(classification_report(y_test, y_pred, target_names=classes))
-
-
-
+print(classification_report(y_test, svm_y_pred, target_names=classes))
 
 def test_single_image(image_path, svm_model, classes):
     
@@ -176,6 +176,81 @@ def test_single_image(image_path, svm_model, classes):
     
     print(f"Predicted Class: {predicted_class}")
 
-test_image_path = "./Input/acne.jpg"
+test_image_path = "./Input/eyebags1.jpg"
 test_single_image(test_image_path, svm_model, classes)
 
+print("**" * 20)
+
+
+print("Training Random Forest...")
+rf_model = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model.fit(X_train, y_train)
+
+rf_y_pred = rf_model.predict(X_test)
+rf_accuracy = accuracy_score(y_test, rf_y_pred)
+print(f"Accuracy: {rf_accuracy * 100:.2f}%")
+
+# Classification Report
+print("Classification Report:")
+print(classification_report(y_test, rf_y_pred, target_names=classes))
+
+test_single_image(test_image_path, rf_model, classes)
+
+print("**" * 20)
+
+print("Training XGB...")
+xgb_model = XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42)
+xgb_model.fit(X_train, y_train)
+
+xgb_y_pred = xgb_model.predict(X_test)
+xgb_accuracy = accuracy_score(y_test, xgb_y_pred)
+print(f"Accuracy: {xgb_accuracy * 100:.2f}%")
+
+# Classification Report
+print("Classification Report:")
+print(classification_report(y_test, xgb_y_pred, target_names=classes))
+
+test_single_image(test_image_path, xgb_model, classes)
+
+print("**" * 20)
+
+base_models = [
+    ('svm', svm_model),
+    ('rf', rf_model),
+    ('xgb', xgb_model)
+]
+
+meta_model1 = LogisticRegression(random_state=42)
+
+stacking_model1 = StackingClassifier(estimators=base_models, final_estimator=meta_model1)
+
+print("Stacking Model with Logistic Regression")
+stacking_model1.fit(X_train, y_train)
+
+stacking_y_pred = stacking_model1.predict(X_test)
+stacking_accuracy = accuracy_score(y_test, stacking_y_pred)
+print(f"Accuracy: {stacking_accuracy * 100:.2f}%")
+
+print("Classification Report:")
+print(classification_report(y_test, stacking_y_pred, target_names=classes))
+
+test_single_image(test_image_path, stacking_model1, classes)
+
+print("**" * 20)
+
+meta_model2 = RandomForestClassifier(random_state=42)
+stacking_model2 = StackingClassifier(estimators=base_models, final_estimator=meta_model2)
+
+print("Stacking Model with Random Forest Classifier")
+stacking_model2.fit(X_train, y_train)
+
+stacking_y_pred = stacking_model2.predict(X_test)
+stacking_accuracy = accuracy_score(y_test, stacking_y_pred)
+print(f"Accuracy: {stacking_accuracy * 100:.2f}%")
+
+print("Classification Report:")
+print(classification_report(y_test, stacking_y_pred, target_names=classes))
+
+test_single_image(test_image_path, stacking_model2, classes)
+
+print("**" * 20)
