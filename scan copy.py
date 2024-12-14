@@ -254,3 +254,78 @@ print(classification_report(y_test, stacking_y_pred, target_names=classes))
 test_single_image(test_image_path, stacking_model2, classes)
 
 print("**" * 20)
+
+
+
+def visualize_features(image_path, svm_model, classes):
+    img = cv2.imread(image_path)
+    
+    if img is None:
+        print(f"Failed to load {image_path}. Skipping.")
+        return
+    
+    features = preprocess_and_extract_features(image_path)
+    
+    features = np.reshape(features, (1, -1))
+    prediction = xgb_model.predict(features)
+    predicted_class = classes[prediction[0]]
+    
+    print(f"Predicted Class: {predicted_class}")
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+    # REDNESS
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lower_red = np.array([0, 50, 50])
+    upper_red = np.array([10, 255, 255])
+    mask = cv2.inRange(hsv, lower_red, upper_red)
+    # redness = cv2.bitwise_and(img, img, mask=mask)
+    # cv2.imshow('red', redness)
+
+    # ACNE
+    acne_area = cv2.inRange(gray, 80, 255)  # Adjust based on your image's acne color/texture
+    cv2.imshow('acne', acne_area)
+
+    # BAGS
+    hsv_bags = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lower_eyebags = np.array([0, 0, 100])
+    upper_eyebags = np.array([180, 50, 200])
+    mask_eyebags = cv2.inRange(hsv, lower_eyebags, upper_eyebags)
+    # eyebags = cv2.bitwise_and(img, img, mask_eyebags=mask_eyebags)
+
+    if predicted_class == 'Bags':
+        for (x, y, w, h) in faces:
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Face detection box
+            cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+        contours, _ = cv2.findContours(mask_eyebags, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)  # Draw redness contours in red
+    
+        print('Bags')
+    elif predicted_class == 'Redness':
+        for (x, y, w, h) in faces:
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Face detection box
+            cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)  # Draw redness contours in red
+    elif predicted_class == 'Acne':
+        for (x, y, w, h) in faces:
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Face detection box
+            cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+
+        contours, _ = cv2.findContours(acne_area, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            cv2.drawContours(img, [contour], -1, (255, 0, 0), 2)  # Draw acne in blue
+
+    cv2.imshow("Annotated Image", img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+# Example usage
+test_image_path = "./Input/eyebags1.jpg"
+visualize_features(test_image_path, svm_model, classes)
