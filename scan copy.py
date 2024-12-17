@@ -38,6 +38,66 @@ for c in classes:
 
 
 IMG_SIZE = 128
+
+
+
+def isskin(image):
+    def nothing(x):
+        pass
+
+    # Load the image and convert to grayscale
+    # gray = cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
+    # mean, std_dev = cv2.meanStdDev(gray)
+
+    # Create a window with trackbars for parameter adjustment
+    cv2.namedWindow('image')
+
+    cv2.createTrackbar('HueMin', 'image', 0, 255, nothing)
+    cv2.createTrackbar('HueMax', 'image', 20, 255, nothing)
+    cv2.createTrackbar('SatMin', 'image', 48, 255, nothing)
+    cv2.createTrackbar('SatMax', 'image', 255, 255, nothing)
+    cv2.createTrackbar('ValMin', 'image', 80, 255, nothing)
+    cv2.createTrackbar('ValMax', 'image', 255, 255, nothing)
+
+    while True:
+        # Get current positions of trackbars
+        h_min = cv2.getTrackbarPos('HueMin', 'image')
+        h_max = cv2.getTrackbarPos('HueMax', 'image')
+        s_min = cv2.getTrackbarPos('SatMin', 'image')
+        s_max = cv2.getTrackbarPos('SatMax', 'image')
+        v_min = cv2.getTrackbarPos('ValMin', 'image')
+        v_max = cv2.getTrackbarPos('ValMax', 'image')
+
+        # Convert the image to HSV color space
+        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        # Define lower and upper bounds for skin detection
+        lower_hsv = np.array([h_min, s_min, v_min])
+        upper_hsv = np.array([h_max, s_max, v_max])
+
+        # Create a binary mask where skin regions are white
+        skinMask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
+
+        # Optional: Apply morphological operations to clean up the mask
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        skinMask = cv2.erode(skinMask, kernel, iterations=2)
+        skinMask = cv2.dilate(skinMask, kernel, iterations=2)
+
+        # Blur the mask to smooth the edges
+        skinMask = cv2.GaussianBlur(skinMask, (5, 5), 0)
+
+        # Apply the mask to the original image
+        skin = cv2.bitwise_and(image, image, mask=skinMask)
+
+        alpha = np.uint8(skinMask > 0) * 255
+        result = cv2.merge((skin, alpha))  # Combine BGR with alpha
+
+        # Save the resulting image
+        cv2.imwrite("skin_detection_result.png", result)
+        
+        # Return the processed image
+        return result
+
 def preprocess_and_extract_features(image_path):
 
     img = cv2.imread(str(image_path))
@@ -46,13 +106,13 @@ def preprocess_and_extract_features(image_path):
         print(f"Failed to load {image_path}. Skipping.")
         return None, None
     
+    final = isskin(img)
     img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
     
     gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, threshold1=100, threshold2=200)
     final = cv2.equalizeHist(edges)
-    # edges = cv2.Canny(gray, threshold1=100, threshold2=200)
-
+    
 
     # ---------------- SIFT ---------------
     # sift = cv2.SIFT_create()
@@ -146,7 +206,7 @@ print(f"Number of labels in y: {len(y)}")
 
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
+ 
 print("Training SVM...")
 svm_model = SVC(kernel='linear', C=1.0, random_state=42)
 svm_model.fit(X_train, y_train)
@@ -297,35 +357,35 @@ def visualize_features(image_path, svm_model, classes):
 
     if predicted_class == 'Bags':
         for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Face detection box
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2) 
             cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
         contours, _ = cv2.findContours(mask_eyebags, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
-            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)  # Draw redness contours in red
+            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)
     
         print('Bags')
     elif predicted_class == 'Redness':
         for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Face detection box
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
-            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)  # Draw redness contours in red
+            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)
     elif predicted_class == 'Acne':
         for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)  # Face detection box
+            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
             cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
         contours, _ = cv2.findContours(acne_area, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for contour in contours:
-            cv2.drawContours(img, [contour], -1, (255, 0, 0), 2)  # Draw acne in blue
+            cv2.drawContours(img, [contour], -1, (255, 0, 0), 2)
 
     cv2.imshow("Annotated Image", img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
 # Example usage
-test_image_path = "./Input/eyebags1.jpg"
+test_image_path = "./Input/red girl 3.png"
 visualize_features(test_image_path, svm_model, classes)
