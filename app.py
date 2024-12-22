@@ -8,7 +8,7 @@ from PIL import Image
 from skimage.feature import local_binary_pattern, hog, graycomatrix, graycoprops
 
 def load_model():
-    model = pickle.load(open('kent.pkl', 'rb'))
+    model = pickle.load(open('cana.pkl', 'rb'))
     return model
 model = load_model()
 
@@ -118,14 +118,14 @@ def extract(img):
     glcm_features = glcm_features.flatten().reshape(1, -1)
     
 
-    # return np.concatenate([lbp_features, hog_features, color_features, glcm_features], axis=1)
+    return np.concatenate([lbp_features, hog_features, color_features, glcm_features], axis=1)
     
     # kalo pake kent.pkl
-    features = np.concatenate([lbp_features, hog_features, color_features, glcm_features], axis=1)
-    if features.shape[1] > 8878:
-        features = features[:, :8878]
-        
-    return features
+    # features = np.concatenate([lbp_features, hog_features, color_features, glcm_features], axis=1)
+    # if features.shape[1] > 8878:
+    #     features = features[:, :8878]
+    
+    # return features
 
 
 st.title('Face Skin Disease Recognition\n(Acne / Eyebags / Redness)')
