@@ -74,16 +74,16 @@ def extract(img):
         print(f"Failed to load {img}. Skipping.")
         return None
     
-    skin_img = isskin(img)
+    denoised = cv2.fastNlMeansDenoising(img, h=10)
+    img_resized = cv2.resize(denoised, (128, 128))
     
+    skin_img = isskin(img_resized)
+
     if skin_img.shape[2] == 4:
         skin_img = skin_img[:, :, :3] 
-        
-    denoised = cv2.fastNlMeansDenoising(skin_img, h=10)
-    img_resized = cv2.resize(denoised, (128, 128))    
     
     # Convert to grayscale
-    gray = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
+    gray = cv2.cvtColor(skin_img, cv2.COLOR_RGB2GRAY)
 
     ## BARU
     lbp = local_binary_pattern(gray, P=8, R=1, method='uniform')
