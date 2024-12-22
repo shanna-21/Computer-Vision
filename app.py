@@ -2,12 +2,13 @@ import streamlit as st
 import pickle
 import numpy as np
 import pandas as pd
+import os
 import cv2
 from PIL import Image
 from skimage.feature import local_binary_pattern, hog, graycomatrix, graycoprops
 
 def load_model():
-    model = pickle.load(open('modelCombinedSemua2.pkl', 'rb'))
+    model = pickle.load(open('kent.pkl', 'rb'))
     return model
 model = load_model()
 
@@ -72,14 +73,15 @@ def extract(img):
     if img is None:
         print(f"Failed to load {img}. Skipping.")
         return None
+    
     skin_img = isskin(img)
-
+    
     if skin_img.shape[2] == 4:
         skin_img = skin_img[:, :, :3] 
+        
     denoised = cv2.fastNlMeansDenoising(skin_img, h=10)
-
-    img_resized = cv2.resize(denoised, (128, 128))
-
+    img_resized = cv2.resize(denoised, (128, 128))    
+    
     # Convert to grayscale
     gray = cv2.cvtColor(img_resized, cv2.COLOR_RGB2GRAY)
 
@@ -88,9 +90,10 @@ def extract(img):
     hist, _ = np.histogram(lbp, bins=np.arange(0, 11), range=(0, 3))
     hist = hist.astype('float')
     hist /= (hist.sum() + 1e-6)
-    lbp_features = hist
+    lbp_features = hist.reshape(1, -1)
 
     hog_features, _ = hog(gray, orientations=9, pixels_per_cell=(8,8), cells_per_block=(2,2), block_norm='L2-Hys', visualize=True)
+    hog_features = hog_features.reshape(1, -1)
 
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     hist_h = cv2.calcHist([hsv], [0], None, [256], (0, 128))
@@ -100,19 +103,38 @@ def extract(img):
     hist_s /= hist_s.sum() + 1e-6
     hist_v /= hist_v.sum() + 1e-6
     color_features = np.concatenate([hist_h.flatten(), hist_s.flatten(), hist_v.flatten()])
+    color_features = color_features.reshape(1, -1)
 
     glcm = graycomatrix(gray, distances=[5], angles=[0], levels=256, symmetric=True, normed=True)
     glcm_features = []
     properties = ('contrast', 'dissimilarity', 'homogeneity', 'energy', 'correlation')
     for prop in properties:
+        # glcm_features.append(graycoprops(glcm, prop).flatten())
         glcm_features.append(graycoprops(glcm, prop).flatten())
+    #     prop_features = graycoprops(glcm, prop).flatten()
+    #     glcm_features.append(prop_features)
+    # glcm_features = np.concatenate(glcm_features)
+    glcm_features = np.array([graycoprops(glcm, prop).flatten() for prop in properties])
+    glcm_features = glcm_features.flatten().reshape(1, -1)
+    
 
-    return np.concatenate([lbp_features.flatten(), hog_features.flatten(), color_features.flatten(), glcm_features.flatten()])
+    # return np.concatenate([lbp_features, hog_features, color_features, glcm_features], axis=1)
+    
+    # kalo pake kent.pkl
+    features = np.concatenate([lbp_features, hog_features, color_features, glcm_features], axis=1)
+    if features.shape[1] > 8878:
+        features = features[:, :8878]
+        
+    return features
+
 
 st.title('Face Skin Disease Recognition\n(Acne / Eyebags / Redness)')
 
 input_option = st.radio("Choose an image source:", ["Gallery", "Camera"])
 selected_image = None
+
+image_dir = "uploaded_images"
+os.makedirs(image_dir, exist_ok=True)
 
 if input_option == "Gallery":
     uploaded_image = st.file_uploader("Upload an image from your device or use the camera to capture one:", 
@@ -120,13 +142,29 @@ if input_option == "Gallery":
                                 accept_multiple_files=False, 
                                 label_visibility="visible")
     if uploaded_image is not None:
-        selected_image = Image.open(uploaded_image)
+        # selected_image = Image.open(uploaded_image)
+        # st.success("Image uploaded successfully...")
+        # Save the uploaded image to a file
+        image_path = os.path.join(image_dir, uploaded_image.name)
+        with open(image_path, "wb") as f:
+            f.write(uploaded_image.getbuffer())
+        selected_image = Image.open(image_path)
         st.success("Image uploaded successfully...")
+        # st.image(selected_image, caption="Uploaded Image")
+        st.write(f"Image saved at: {image_path}")
 elif input_option == "Camera":
     camera_image = st.camera_input("Capture an image using your camera:")
     if camera_image is not None:
-        selected_image = Image.open(camera_image)
+        # selected_image = Image.open(camera_image)
+        # st.success("Image captured successfully...")
+        # Save the captured image to a file
+        image_path = os.path.join(image_dir, "captured_image.png")  # You can change the name if needed
+        with open(image_path, "wb") as f:
+            f.write(camera_image.getbuffer())
+        selected_image = Image.open(image_path)
         st.success("Image captured successfully...")
+        # st.image(selected_image, caption="Captured Image")
+        st.write(f"Image saved at: {image_path}")
 
 # Submit button
 if st.button("Submit"):
@@ -134,7 +172,7 @@ if st.button("Submit"):
         st.image(selected_image, caption="Submitted Image", use_column_width=True)
         
         # TEST
-        temp_image = cv2.imread('./Input/red girl.jpg')
+        temp_image = cv2.imread(image_path)
 
         # Preprocess the image
         extracted_data = extract(temp_image)
@@ -144,6 +182,12 @@ if st.button("Submit"):
         
         # Display predictions
         st.write("Prediction Results:")
-        st.write(predictions)
+        if predictions == 0:
+            st.write("Acne")
+        elif predictions == 2:
+            st.write("Redness")
+        elif predictions == 1:
+            st.write("Eyebags")
+        
     else:
         st.warning("Please upload or capture an image before submitting.")
