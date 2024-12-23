@@ -184,10 +184,43 @@ if st.button("Submit"):
         st.write("Prediction Results:")
         if predictions == 0:
             st.write("Acne")
+            st.write("What you can do if you have acne")
+            st.markdown("""
+            - Wash your face twice a day and after sweating
+            - Stop scrubbing your face and other acne-prone skin
+            - Resist touching, picking, and popping your acne
+            - Properly wash your face
+            - Stay hydrated
+            - Limit makeup
+            - Try not to touch face
+            - Limit sun exposure
+                        """)
         elif predictions == 2:
             st.write("Redness")
+            st.write("What you can do if you have redness")
+            st.markdown("""
+            - Avoid harsh skincare products (like those with alcohol or fragrance).
+            - Use gentle, fragrance-free cleansers and moisturizers.
+            - Protect your skin from the sun with sunscreen (SPF 30 or higher).
+            - Apply cool compresses to calm redness.
+            - Avoid hot showers, spicy foods, and alcohol, which can trigger redness.
+            - Stay hydrated and maintain a healthy diet.
+            - Use makeup with green undertones to neutralize redness.
+            - Reduce stress, as it can exacerbate redness.
+                        """)
         elif predictions == 1:
             st.write("Eyebags")
+            st.write("What you can do if you have eyebags")
+            st.markdown("""
+            - Use a cool compress on your eyes
+            - Make sure you get enough sleep
+            - Sleep with your head raised slightly
+            - Try to avoid drinking fluids before bed
+            - Limit salt in your diet
+            - Try to reduce your allergy symptoms
+            - Don't smoke
+            - Wear sunscreen every day
+                        """)
         
     else:
         st.warning("Please upload or capture an image before submitting.")
