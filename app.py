@@ -5,6 +5,7 @@ import pandas as pd
 import os
 import cv2
 from PIL import Image
+import pyttsx3
 from skimage.feature import local_binary_pattern, hog, graycomatrix, graycoprops
 
 def load_model():
@@ -180,12 +181,23 @@ if st.button("Submit"):
         # Make predictions
         predictions = model.predict(extracted_data)
         
+        
+        engine = pyttsx3.init()
+        stop_speaking = False
+
+        def speak_text(text):
+            engine.say(text)
+            engine.runAndWait()
+            
         # Display predictions
         st.write("Prediction Results:")
+        speak_text("Prediction Results:")
         if predictions == 0:
             st.write("Acne")
+            speak_text("Acne")
             st.write("What you can do if you have acne")
-            st.markdown("""
+            speak_text("What you can do if you have acne")
+            content = ("""
             - Wash your face twice a day and after sweating
             - Stop scrubbing your face and other acne-prone skin
             - Resist touching, picking, and popping your acne
@@ -195,10 +207,15 @@ if st.button("Submit"):
             - Try not to touch face
             - Limit sun exposure
                         """)
+            
+            st.markdown(content)
+            speak_text(content)
         elif predictions == 2:
             st.write("Redness")
+            speak_text("Redness")
             st.write("What you can do if you have redness")
-            st.markdown("""
+            speak_text("What you can do if you have redness")
+            content = ("""
             - Avoid harsh skincare products (like those with alcohol or fragrance).
             - Use gentle, fragrance-free cleansers and moisturizers.
             - Protect your skin from the sun with sunscreen (SPF 30 or higher).
@@ -208,10 +225,15 @@ if st.button("Submit"):
             - Use makeup with green undertones to neutralize redness.
             - Reduce stress, as it can exacerbate redness.
                         """)
+            
+            st.markdown(content)
+            speak_text(content)
         elif predictions == 1:
             st.write("Eyebags")
+            speak_text("Eyebags")
             st.write("What you can do if you have eyebags")
-            st.markdown("""
+            speak_text("What you can do if you have eyebags")
+            content = ("""
             - Use a cool compress on your eyes
             - Make sure you get enough sleep
             - Sleep with your head raised slightly
@@ -221,6 +243,11 @@ if st.button("Submit"):
             - Don't smoke
             - Wear sunscreen every day
                         """)
+            
+            st.markdown(content)
+            speak_text(content)
         
     else:
         st.warning("Please upload or capture an image before submitting.")
+        
+        
