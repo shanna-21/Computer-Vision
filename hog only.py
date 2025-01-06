@@ -42,61 +42,38 @@ IMG_SIZE = 128
 
 
 def isskin(image):
-    def nothing(x):
-        pass
+    h_min = 0
+    h_max = 128
+    s_min = 100
+    s_max = 150
+    v_min = 0
+    v_max = 128
 
-    # Load the image and convert to grayscale
-    # gray = cv2.cvtColor(image, cv2.COLOR_BGRA2GRAY)
-    # mean, std_dev = cv2.meanStdDev(gray)
+    # Convert the image to HSV color space
+    hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    # Create a window with trackbars for parameter adjustment
-    cv2.namedWindow('image')
+    # Define lower and upper bounds for skin detection
+    lower_hsv = np.array([h_min, s_min, v_min])
+    upper_hsv = np.array([h_max, s_max, v_max])
 
-    cv2.createTrackbar('HueMin', 'image', 0, 255, nothing)
-    cv2.createTrackbar('HueMax', 'image', 20, 255, nothing)
-    cv2.createTrackbar('SatMin', 'image', 48, 255, nothing)
-    cv2.createTrackbar('SatMax', 'image', 255, 255, nothing)
-    cv2.createTrackbar('ValMin', 'image', 80, 255, nothing)
-    cv2.createTrackbar('ValMax', 'image', 255, 255, nothing)
+    # Create a binary mask
+    skinMask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
 
-    while True:
-        # Get current positions of trackbars
-        h_min = cv2.getTrackbarPos('HueMin', 'image')
-        h_max = cv2.getTrackbarPos('HueMax', 'image')
-        s_min = cv2.getTrackbarPos('SatMin', 'image')
-        s_max = cv2.getTrackbarPos('SatMax', 'image')
-        v_min = cv2.getTrackbarPos('ValMin', 'image')
-        v_max = cv2.getTrackbarPos('ValMax', 'image')
+    # Apply morphological operations to clean up the mask
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    skinMask = cv2.erode(skinMask, kernel, iterations=2)
+    skinMask = cv2.dilate(skinMask, kernel, iterations=2)
 
-        # Convert the image to HSV color space
-        hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    # Blur the mask to smooth the edges
+    skinMask = cv2.GaussianBlur(skinMask, (5, 5), 0)
 
-        # Define lower and upper bounds for skin detection
-        lower_hsv = np.array([h_min, s_min, v_min])
-        upper_hsv = np.array([h_max, s_max, v_max])
+    # Apply the mask to the original image
+    skin = cv2.bitwise_and(image, image, mask=skinMask)
 
-        # Create a binary mask where skin regions are white
-        skinMask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
+    alpha = np.uint8(skinMask > 0) * 255
+    result = cv2.merge((skin, alpha))
 
-        # Optional: Apply morphological operations to clean up the mask
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        skinMask = cv2.erode(skinMask, kernel, iterations=2)
-        skinMask = cv2.dilate(skinMask, kernel, iterations=2)
-
-        # Blur the mask to smooth the edges
-        skinMask = cv2.GaussianBlur(skinMask, (5, 5), 0)
-
-        # Apply the mask to the original image
-        skin = cv2.bitwise_and(image, image, mask=skinMask)
-
-        alpha = np.uint8(skinMask > 0) * 255
-        result = cv2.merge((skin, alpha))  # Combine BGR with alpha
-
-        # Save the resulting image
-        cv2.imwrite("skin_detection_result.png", result)
-        
-        # Return the processed image
-        return result
+    return result
 
 def preprocess_and_extract_features(image_path):
 
@@ -236,7 +213,7 @@ def test_single_image(image_path, svm_model, classes):
     
     print(f"Predicted Class: {predicted_class}")
 
-test_image_path = "./Input/eyebags1.jpg"
+test_image_path = "./Input/eyebags2.jpg"
 test_single_image(test_image_path, svm_model, classes)
 
 print("**" * 20)
@@ -275,9 +252,9 @@ test_single_image(test_image_path, xgb_model, classes)
 print("**" * 20)
 
 base_models = [
-    ('svm', svm_model),
-    ('rf', rf_model),
-    ('xgb', xgb_model)
+        ('svm', SVC(kernel='linear', probability=True)),
+        ('rf', RandomForestClassifier(n_estimators=100, random_state=42)),
+        ('xgb', XGBClassifier(use_label_encoder=False, eval_metric='mlogloss', random_state=42))
 ]
 
 meta_model1 = LogisticRegression(random_state=42)
@@ -315,77 +292,109 @@ test_single_image(test_image_path, stacking_model2, classes)
 
 print("**" * 20)
 
+meta_model3 = SVC(random_state=42)
+stacking_model3 = StackingClassifier(estimators=base_models, final_estimator=meta_model3)
 
+print("Stacking Model with SVC")
+stacking_model3.fit(X_train, y_train)
 
-def visualize_features(image_path, svm_model, classes):
-    img = cv2.imread(image_path)
+stacking_y_pred = stacking_model3.predict(X_test)
+stacking_accuracy = accuracy_score(y_test, stacking_y_pred)
+print(f"Accuracy: {stacking_accuracy * 100:.2f}%")
+
+print("Classification Report:")
+print(classification_report(y_test, stacking_y_pred, target_names=classes))
+
+test_single_image(test_image_path, stacking_model3, classes)
+
+print("" * 20)
+
+meta_model4 = XGBClassifier(random_state=42)
+stacking_model4 = StackingClassifier(estimators=base_models, final_estimator=meta_model4)
+
+print("Stacking Model with XGB")
+stacking_model4.fit(X_train, y_train)
+
+stacking_y_pred = stacking_model4.predict(X_test)
+stacking_accuracy = accuracy_score(y_test, stacking_y_pred)
+print(f"Accuracy: {stacking_accuracy * 100:.2f}%")
+
+print("Classification Report:")
+print(classification_report(y_test, stacking_y_pred, target_names=classes))
+
+test_single_image(test_image_path, stacking_model4, classes)
+
+print("" * 20)
+
+# def visualize_features(image_path, svm_model, classes):
+#     img = cv2.imread(image_path)
     
-    if img is None:
-        print(f"Failed to load {image_path}. Skipping.")
-        return
+#     if img is None:
+#         print(f"Failed to load {image_path}. Skipping.")
+#         return
     
-    features = preprocess_and_extract_features(image_path)
+#     features = preprocess_and_extract_features(image_path)
     
-    features = np.reshape(features, (1, -1))
-    prediction = xgb_model.predict(features)
-    predicted_class = classes[prediction[0]]
+#     features = np.reshape(features, (1, -1))
+#     prediction = xgb_model.predict(features)
+#     predicted_class = classes[prediction[0]]
     
-    print(f"Predicted Class: {predicted_class}")
+#     print(f"Predicted Class: {predicted_class}")
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+#     faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
 
-    # REDNESS
-    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    lower_red = np.array([0, 50, 50])
-    upper_red = np.array([10, 255, 255])
-    mask = cv2.inRange(hsv, lower_red, upper_red)
-    # redness = cv2.bitwise_and(img, img, mask=mask)
-    # cv2.imshow('red', redness)
+#     # REDNESS
+#     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+#     lower_red = np.array([0, 50, 50])
+#     upper_red = np.array([10, 255, 255])
+#     mask = cv2.inRange(hsv, lower_red, upper_red)
+#     # redness = cv2.bitwise_and(img, img, mask=mask)
+#     # cv2.imshow('red', redness)
 
-    # ACNE
-    acne_area = cv2.inRange(gray, 80, 255)  # Adjust based on your image's acne color/texture
-    cv2.imshow('acne', acne_area)
+#     # ACNE
+#     acne_area = cv2.inRange(gray, 80, 255)  # Adjust based on your image's acne color/texture
+#     cv2.imshow('acne', acne_area)
 
-    # BAGS
-    hsv_bags = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-    lower_eyebags = np.array([0, 0, 100])
-    upper_eyebags = np.array([180, 50, 200])
-    mask_eyebags = cv2.inRange(hsv, lower_eyebags, upper_eyebags)
-    # eyebags = cv2.bitwise_and(img, img, mask_eyebags=mask_eyebags)
+#     # BAGS
+#     hsv_bags = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+#     lower_eyebags = np.array([0, 0, 100])
+#     upper_eyebags = np.array([180, 50, 200])
+#     mask_eyebags = cv2.inRange(hsv, lower_eyebags, upper_eyebags)
+#     # eyebags = cv2.bitwise_and(img, img, mask_eyebags=mask_eyebags)
 
-    if predicted_class == 'Bags':
-        for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2) 
-            cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+#     if predicted_class == 'Bags':
+#         for (x, y, w, h) in faces:
+#             cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2) 
+#             cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-        contours, _ = cv2.findContours(mask_eyebags, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)
+#         contours, _ = cv2.findContours(mask_eyebags, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#         for contour in contours:
+#             cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)
     
-        print('Bags')
-    elif predicted_class == 'Redness':
-        for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+#         print('Bags')
+#     elif predicted_class == 'Redness':
+#         for (x, y, w, h) in faces:
+#             cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+#             cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)
-    elif predicted_class == 'Acne':
-        for (x, y, w, h) in faces:
-            cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+#         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#         for contour in contours:
+#             cv2.drawContours(img, [contour], -1, (0, 0, 255), 2)
+#     elif predicted_class == 'Acne':
+#         for (x, y, w, h) in faces:
+#             cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
+#             cv2.putText(img, "Face", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
 
-        contours, _ = cv2.findContours(acne_area, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        for contour in contours:
-            cv2.drawContours(img, [contour], -1, (255, 0, 0), 2)
+#         contours, _ = cv2.findContours(acne_area, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+#         for contour in contours:
+#             cv2.drawContours(img, [contour], -1, (255, 0, 0), 2)
 
-    cv2.imshow("Annotated Image", img)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
+#     cv2.imshow("Annotated Image", img)
+#     cv2.waitKey(0)
+#     cv2.destroyAllWindows()
 
-# Example usage
-test_image_path = "./Input/red girl 3.png"
-visualize_features(test_image_path, svm_model, classes)
+# # Example usage
+# test_image_path = "./Input/red girl 3.png"
+# visualize_features(test_image_path, svm_model, classes)
