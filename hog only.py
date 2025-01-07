@@ -49,31 +49,30 @@ def isskin(image):
     v_min = 0
     v_max = 128
 
-    # Convert the image to HSV color space
     hsv_image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    # Define lower and upper bounds for skin detection
     lower_hsv = np.array([h_min, s_min, v_min])
     upper_hsv = np.array([h_max, s_max, v_max])
 
-    # Create a binary mask
     skinMask = cv2.inRange(hsv_image, lower_hsv, upper_hsv)
 
-    # Apply morphological operations to clean up the mask
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     skinMask = cv2.erode(skinMask, kernel, iterations=2)
     skinMask = cv2.dilate(skinMask, kernel, iterations=2)
 
-    # Blur the mask to smooth the edges
     skinMask = cv2.GaussianBlur(skinMask, (5, 5), 0)
-
-    # Apply the mask to the original image
+    
     skin = cv2.bitwise_and(image, image, mask=skinMask)
 
-    alpha = np.uint8(skinMask > 0) * 255
-    result = cv2.merge((skin, alpha))
+    # alpha = np.uint8(skinMask > 0) * 255
+    # result = cv2.merge((skin, alpha))
 
-    return result
+    return skin
+
+def apply_gamma_correction(image, gamma=1.0):
+    inv_gamma = 1.0 / gamma
+    table = np.array([((i / 255.0) ** inv_gamma) * 255 for i in range(256)]).astype("uint8")
+    return cv2.LUT(image, table)
 
 def preprocess_and_extract_features(image_path):
 
@@ -83,44 +82,16 @@ def preprocess_and_extract_features(image_path):
         print(f"Failed to load {image_path}. Skipping.")
         return None, None
     
-    final = isskin(img)
-    img_resized = cv2.resize(img, (IMG_SIZE, IMG_SIZE))
+    # final = isskin(img)
+    
+    corrected = apply_gamma_correction(img)
+    denoised = cv2.fastNlMeansDenoising(corrected, h=10)
+    img_resized = cv2.resize(denoised, (IMG_SIZE, IMG_SIZE))
     
     gray = cv2.cvtColor(img_resized, cv2.COLOR_BGR2GRAY)
     edges = cv2.Canny(gray, threshold1=100, threshold2=200)
     final = cv2.equalizeHist(edges)
     
-
-    # ---------------- SIFT ---------------
-    # sift = cv2.SIFT_create()
-    # keypoints, descriptors = sift.detectAndCompute(gray, None)
-    
-    # if descriptors is None:
-    #     print(f"No SIFT features detected in {image_path}")
-    #     return None
-    
-    # feature_vector = np.mean(descriptors, axis=0)
-    # return feature_vector
-
-
-    # ---------------- SURF ---------------
-    # surf = cv2.xfeatures2d.SURF_create(hessianThreshold=400)
-
-    # # Detect keypoints and compute descriptors
-    # keypoints, descriptors = surf.detectAndCompute(gray, None)
-    
-    # if descriptors is None:
-    #     print(f"No SURF features detected in {image_path}")
-    #     return None
-
-    # # Optionally, use the mean of descriptors as a feature vector
-    # feature_vector = np.mean(descriptors, axis=0)
-
-    # return feature_vector
-    # >>>GABISA<<<
-
-
-
     # ---------------- HOG ---------------
     hog_features, hog_image = hog(
         final,
@@ -133,25 +104,6 @@ def preprocess_and_extract_features(image_path):
     )
 
     return hog_features
-
-
-
-    # ---------------- LBP ---------------
-    # radius = 3  # Radius of the circular neighborhood
-    # n_points = 8 * radius  # Number of points in the neighborhood
-
-    # # Extract LBP features
-    # lbp = local_binary_pattern(final, n_points, radius, method="uniform")
-    
-    # # Calculate the histogram of LBP
-    # n_bins = int(lbp.max() + 1)
-    # hist, _ = np.histogram(lbp.ravel(), bins=n_bins, range=(0, n_bins))
-
-    # # Normalize the histogram
-    # hist = hist.astype("float")
-    # hist /= (hist.sum() + 1e-7)  # Avoid division by zero
-
-    # return hist
 
 
 
